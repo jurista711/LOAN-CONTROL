@@ -25,7 +25,7 @@ jobs:
             sed -i "/import 'package:flutter\/material.dart';/a import 'customer_flow.dart';" lib/main.dart
           fi
           sed -i '0,/const CustomersPage()/s//const OriginalCustomerFlow()/' lib/main.dart
-      - name: Fix legacy customer-list syntax
+      - name: Fix source syntax
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -36,6 +36,11 @@ jobs:
           if old not in s:
               raise SystemExit('legacy customer syntax pattern not found')
           p.write_text(s.replace(old, new, 1))
+
+          p = Path('lib/customer_flow.dart')
+          s = p.read_text()
+          s = s.replace("R$ 0,00", "R\\$ 0,00")
+          p.write_text(s)
           PY
       - name: Get packages
         run: flutter pub get
