@@ -21,10 +21,22 @@ jobs:
         run: sed -i 's/android:label="loan_control"/android:label="Roots Cobranças"/' android/app/src/main/AndroidManifest.xml
       - name: Integrate reconstructed customer flow
         run: |
-          sed -i "/import 'package:flutter\/material.dart';/a import 'customer_flow.dart';" lib/main.dart
+          if ! grep -q "import 'customer_flow.dart';" lib/main.dart; then
+            sed -i "/import 'package:flutter\/material.dart';/a import 'customer_flow.dart';" lib/main.dart
+          fi
           sed -i '0,/const CustomersPage()/s//const OriginalCustomerFlow()/' lib/main.dart
       - name: Fix legacy customer-list syntax
-        run: perl -0pi -e 's/\}\)\),\n        \]\),/\}\)\),\n        \]\),/' lib/main.dart
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('lib/main.dart')
+          s = p.read_text()
+          old = "          })),\n        ]),\n      ),\n      floatingActionButton: FloatingActionButton(backgroundColor: mint, onPressed: () => openPage(context, 'Criar Cliente', const CreateCustomerPage()), child: const Icon(Icons.add)),"
+          new = "          }))),\n        ]),\n      ),\n      floatingActionButton: FloatingActionButton(backgroundColor: mint, onPressed: () => openPage(context, 'Criar Cliente', const CreateCustomerPage()), child: const Icon(Icons.add)),"
+          if old not in s:
+              raise SystemExit('legacy customer syntax pattern not found')
+          p.write_text(s.replace(old, new, 1))
+          PY
       - name: Get packages
         run: flutter pub get
       - name: Analyze
