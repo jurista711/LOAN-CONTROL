@@ -2,7 +2,7 @@ name: Build LOAN CONTROL APK
 
 on:
   push:
-    branches: [main]
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
@@ -10,30 +10,27 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: subosito/flutter-action@v2
         with:
-          channel: stable
           flutter-version: '3.47.2'
+          channel: stable
           cache: true
-
-      - name: Criar Android
+      - name: Create Android platform
         run: flutter create --platforms=android --org com.rootscobrancas --project-name loan_control .
-
-      - name: Ajustes temporários da base
+      - name: Set app label
+        run: sed -i 's/android:label="loan_control"/android:label="Roots Cobranças"/' android/app/src/main/AndroidManifest.xml
+      - name: Integrate reconstructed customer flow
         run: |
-          sed -i 's/android:label="loan_control"/android:label="Roots Cobranças"/' android/app/src/main/AndroidManifest.xml
-          perl -0pi -e 's/\}\)\),\n        \]\),/}))),\n        ]),/' lib/main.dart
-
-      - name: Dependências
+          sed -i "/import 'package:flutter\/material.dart';/a import 'customer_flow.dart';" lib/main.dart
+          sed -i '0,/const CustomersPage()/s//const OriginalCustomerFlow()/' lib/main.dart
+      - name: Fix legacy customer-list syntax
+        run: perl -0pi -e 's/\}\)\),\n        \]\),/\}\)\),\n        \]\),/' lib/main.dart
+      - name: Get packages
         run: flutter pub get
-
-      - name: Analisar
+      - name: Analyze
         run: flutter analyze lib --no-fatal-infos
-
-      - name: Build APK de teste
+      - name: Build debug APK
         run: flutter build apk --debug
-
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
