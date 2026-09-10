@@ -23,7 +23,7 @@ jobs:
       - name: Ajustes temporários da base
         run: |
           sed -i 's/android:label="loan_control"/android:label="Roots Cobranças"/' android/app/src/main/AndroidManifest.xml
-          sed -i '471s/})),/}))),/' lib/main.dart
+          perl -0pi -e 's/\}\)\),\n        \]\),/}))),\n        ]),/' lib/main.dart
 
       - name: Dependências
         run: flutter pub get
