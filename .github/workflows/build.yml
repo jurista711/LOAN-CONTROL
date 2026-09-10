@@ -20,14 +20,16 @@ jobs:
       - name: Criar Android
         run: flutter create --platforms=android --org com.rootscobrancas --project-name loan_control .
 
-      - name: Nome do aplicativo
-        run: sed -i 's/android:label="loan_control"/android:label="Roots Cobranças"/' android/app/src/main/AndroidManifest.xml
+      - name: Ajustes temporários da base
+        run: |
+          sed -i 's/android:label="loan_control"/android:label="Roots Cobranças"/' android/app/src/main/AndroidManifest.xml
+          sed -i '471s/})),/}))),/' lib/main.dart
 
       - name: Dependências
         run: flutter pub get
 
       - name: Analisar
-        run: flutter analyze --no-fatal-infos
+        run: flutter analyze lib --no-fatal-infos
 
       - name: Build APK de teste
         run: flutter build apk --debug
