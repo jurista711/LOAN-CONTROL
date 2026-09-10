@@ -1,0 +1,40 @@
+name: Build LOAN CONTROL APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.2'
+          cache: true
+
+      - name: Criar Android
+        run: flutter create --platforms=android --org com.rootscobrancas --project-name loan_control .
+
+      - name: Nome do aplicativo
+        run: sed -i 's/android:label="loan_control"/android:label="Roots Cobranças"/' android/app/src/main/AndroidManifest.xml
+
+      - name: Dependências
+        run: flutter pub get
+
+      - name: Analisar
+        run: flutter analyze --no-fatal-infos
+
+      - name: Build APK de teste
+        run: flutter build apk --debug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: LOAN-CONTROL-APK-TESTE
+          path: build/app/outputs/flutter-apk/app-debug.apk
+          retention-days: 14
