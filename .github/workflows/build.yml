@@ -98,7 +98,6 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
-
           p = Path('lib/main.dart')
           s = p.read_text()
           s = s.replace('height: 180,', 'height: 116,', 1)
@@ -106,7 +105,6 @@ jobs:
           s = s.replace("fontSize: 30, fontWeight: FontWeight.w400", "fontSize: 24, fontWeight: FontWeight.w400", 1)
           s = s.replace('Container(width: 44, height: 44,', 'Container(width: 36, height: 36,', 1)
           s = s.replace('borderRadius: BorderRadius.circular(13)', 'borderRadius: BorderRadius.circular(11)', 2)
-
           start = s.find('class QuickCard extends StatelessWidget')
           end = s.find('class CollectionCard extends StatelessWidget', start)
           if start < 0 or end < 0:
@@ -174,10 +172,24 @@ jobs:
           BUILD_NUMBER=$((100000 + GITHUB_RUN_NUMBER))
           echo "Android versionCode: $BUILD_NUMBER"
           flutter build apk --debug --build-number="$BUILD_NUMBER"
+      - name: Force stable APK signing key
+        run: |
+          APK=build/app/outputs/flutter-apk/app-debug.apk
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" sign \
+            --ks "$HOME/.android/debug.keystore" \
+            --ks-key-alias androiddebugkey \
+            --ks-pass pass:android \
+            --key-pass pass:android \
+            "$APK"
       - name: Verify APK signing and package
         run: |
           APK=build/app/outputs/flutter-apk/app-debug.apk
-          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$APK" | grep -E "Signer #1 certificate SHA-256 digest|Verified"
+          EXPECTED=$(keytool -list -v -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey | awk '/SHA256:/{gsub(":", "", $2); print tolower($2); exit}')
+          ACTUAL=$("$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$APK" | awk -F': ' '/Signer #1 certificate SHA-256 digest/{print tolower($2); exit}')
+          echo "Expected signer: $EXPECTED"
+          echo "Actual signer:   $ACTUAL"
+          test "$EXPECTED" = "$ACTUAL"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify "$APK"
           "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | grep "package: name=" | head -1
       - name: Upload APK
         uses: actions/upload-artifact@v4
