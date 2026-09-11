@@ -39,16 +39,31 @@ jobs:
         run: flutter create --platforms=android --org com.rootscobrancas --project-name loan_control .
       - name: Set app label
         run: sed -i 's/android:label="loan_control"/android:label="Roots Cobranças"/' android/app/src/main/AndroidManifest.xml
-      - name: Integrate reconstructed customer flow
+      - name: Integrate reconstructed flows
         run: |
           if ! grep -q "import 'customer_flow.dart';" lib/main.dart; then
             sed -i "/import 'package:flutter\/material.dart';/a import 'customer_flow.dart';" lib/main.dart
           fi
           sed -i '0,/const CustomersPage()/s//const OriginalCustomerFlow()/' lib/main.dart
+
           if ! grep -q "import 'payment_flow.dart';" lib/customer_flow.dart; then
             sed -i "/import 'main.dart';/a import 'payment_flow.dart';" lib/customer_flow.dart
           fi
+          if ! grep -q "import 'loan_workspace.dart';" lib/customer_flow.dart; then
+            sed -i "/import 'main.dart';/a import 'loan_workspace.dart';" lib/customer_flow.dart
+          fi
+
           sed -i 's/builder: (_) => OriginalPaymentPage(loan: loan)/builder: (_) => ConnectedPaymentPage(loan: loan)/' lib/customer_flow.dart
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('lib/customer_flow.dart')
+          s = p.read_text()
+          s = s.replace(
+              "LoanDetail(loanId: loan['id'].toString()),",
+              "LoanWorkspacePage(loan: loan, customerName: customerName, customerId: widget.customer['id']?.toString()),",
+          )
+          p.write_text(s)
+          PY
       - name: Fix source syntax
         run: |
           python3 - <<'PY'
@@ -57,9 +72,9 @@ jobs:
           s = p.read_text()
           old = "          })),\n        ]),\n      ),\n      floatingActionButton: FloatingActionButton(backgroundColor: mint, onPressed: () => openPage(context, 'Criar Cliente', const CreateCustomerPage()), child: const Icon(Icons.add)),"
           new = "          }))),\n        ]),\n      ),\n      floatingActionButton: FloatingActionButton(backgroundColor: mint, onPressed: () => openPage(context, 'Criar Cliente', const CreateCustomerPage()), child: const Icon(Icons.add)),"
-          if old not in s:
-              raise SystemExit('legacy customer syntax pattern not found')
-          p.write_text(s.replace(old, new, 1))
+          if old in s:
+              s = s.replace(old, new, 1)
+          p.write_text(s)
 
           p = Path('lib/customer_flow.dart')
           s = p.read_text()
