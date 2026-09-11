@@ -52,8 +52,12 @@ jobs:
           if ! grep -q "import 'loan_workspace.dart';" lib/customer_flow.dart; then
             sed -i "/import 'main.dart';/a import 'loan_workspace.dart';" lib/customer_flow.dart
           fi
+          if ! grep -q "import 'customer_detail_ref.dart';" lib/customer_flow.dart; then
+            sed -i "/import 'main.dart';/a import 'customer_detail_ref.dart';" lib/customer_flow.dart
+          fi
 
           sed -i 's/builder: (_) => OriginalPaymentPage(loan: loan)/builder: (_) => ConnectedPaymentPage(loan: loan)/' lib/customer_flow.dart
+          sed -i 's/builder: (_) => OriginalCustomerDetail(/builder: (_) => ReferenceCustomerDetailPage(/' lib/customer_flow.dart
           python3 - <<'PY'
           from pathlib import Path
           p = Path('lib/customer_flow.dart')
@@ -69,7 +73,7 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
 
-          # HOME: the original reference shows compact square quick-action cards.
+          # HOME: compact quick-action cards from the original Dashboard reference.
           p = Path('lib/main.dart')
           s = p.read_text()
           start = s.find('class QuickCard extends StatelessWidget')
@@ -85,7 +89,7 @@ jobs:
           s = s[:start] + block + s[end:]
           p.write_text(s)
 
-          # CLIENTES: dimensions measured against the original client-list reference.
+          # CLIENTES: measurements taken from the original client-list reference.
           p = Path('lib/customer_flow.dart')
           s = p.read_text()
           s = s.replace('width: 265,\n                    height: 58,', 'width: 195,\n                    height: 44,', 1)
@@ -93,6 +97,19 @@ jobs:
           s = s.replace('radius: 24,\n          backgroundColor: mintDark,', 'radius: 20,\n          backgroundColor: mintDark,', 1)
           s = s.replace('borderRadius: BorderRadius.circular(21)', 'borderRadius: BorderRadius.circular(16)', 1)
           s = s.replace('contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 7)', 'contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 5)', 1)
+          p.write_text(s)
+
+          # PAGAMENTO: original screen uses the legacy title and a compact centered save button.
+          p = Path('lib/payment_flow.dart')
+          s = p.read_text()
+          s = s.replace("const Text('Adicionar Pagamento', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900))", "const Text('Adicionar Empréstimo', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500))", 1)
+          old = """                    SizedBox(\n                      width: double.infinity,\n                      height: 58,\n                      child: FilledButton.icon("""
+          new = """                    Center(\n                      child: SizedBox(\n                        width: 250,\n                        height: 46,\n                        child: FilledButton.icon("""
+          if old in s:
+              s = s.replace(old, new, 1)
+              close_old = """                        label: Text(saving ? 'SALVANDO...' : 'GUARDE O PAGAMENTO', style: const TextStyle(fontWeight: FontWeight.w900)),\n                      ),\n                    ),"""
+              close_new = """                          label: Text(saving ? 'SALVANDO...' : 'GUARDE O PAGAMENTO', style: const TextStyle(fontWeight: FontWeight.w900)),\n                        ),\n                      ),\n                    ),"""
+              s = s.replace(close_old, close_new, 1)
           p.write_text(s)
           PY
       - name: Fix source syntax
