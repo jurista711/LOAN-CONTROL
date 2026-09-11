@@ -75,14 +75,12 @@ jobs:
 
           p = Path('lib/main.dart')
           s = p.read_text()
-          # Dashboard header measured against original reference video.
           s = s.replace('height: 180,', 'height: 116,', 1)
           s = s.replace('padding: const EdgeInsets.fromLTRB(24, 48, 16, 42),', 'padding: const EdgeInsets.fromLTRB(18, 36, 14, 20),', 1)
           s = s.replace("fontSize: 30, fontWeight: FontWeight.w400", "fontSize: 24, fontWeight: FontWeight.w400", 1)
           s = s.replace('Container(width: 44, height: 44,', 'Container(width: 36, height: 36,', 1)
           s = s.replace('borderRadius: BorderRadius.circular(13)', 'borderRadius: BorderRadius.circular(11)', 2)
 
-          # Four compact quick-action cards from original Dashboard.
           start = s.find('class QuickCard extends StatelessWidget')
           end = s.find('class CollectionCard extends StatelessWidget', start)
           if start < 0 or end < 0:
@@ -94,12 +92,9 @@ jobs:
           block = block.replace('Container(width: 40, height: 40,', 'Container(width: 29, height: 29,')
           block = block.replace('borderRadius: BorderRadius.circular(12)', 'borderRadius: BorderRadius.circular(8)')
           s = s[:start] + block + s[end:]
-
-          # Original floating calculator is a regular compact FAB, not the oversized large variant.
           s = s.replace('FloatingActionButton.large(backgroundColor: mint,', 'FloatingActionButton(backgroundColor: mint,', 1)
           p.write_text(s)
 
-          # Client-list proportions measured from the original list screen.
           p = Path('lib/customer_flow.dart')
           s = p.read_text()
           s = s.replace('width: 265,\n                    height: 58,', 'width: 150,\n                    height: 42,', 1)
@@ -109,7 +104,6 @@ jobs:
           s = s.replace('contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 7)', 'contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4)', 1)
           p.write_text(s)
 
-          # Payment screen title/action verified in the original video.
           p = Path('lib/payment_flow.dart')
           s = p.read_text()
           s = s.replace("const Text('Adicionar Pagamento', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900))", "const Text('Adicionar Empréstimo', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500))", 1)
@@ -137,6 +131,11 @@ jobs:
           p = Path('lib/customer_flow.dart')
           s = p.read_text()
           s = s.replace("R$ 0,00", "R\\$ 0,00")
+          p.write_text(s)
+
+          p = Path('lib/customer_detail_ref.dart')
+          s = p.read_text()
+          s = s.replace('Icons.person_edit_alt_1_outlined', 'Icons.edit_outlined')
           p.write_text(s)
           PY
       - name: Get packages
