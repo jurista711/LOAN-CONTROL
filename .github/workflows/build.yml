@@ -73,40 +73,43 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
 
-          # HOME / CLIENTES shared wave header: original is much shorter than the first reconstruction.
           p = Path('lib/main.dart')
           s = p.read_text()
-          s = s.replace('height: 180,', 'height: 132,', 1)
-          s = s.replace('padding: const EdgeInsets.fromLTRB(24, 48, 16, 42),', 'padding: const EdgeInsets.fromLTRB(18, 40, 14, 24),', 1)
+          # Dashboard header measured against original reference video.
+          s = s.replace('height: 180,', 'height: 116,', 1)
+          s = s.replace('padding: const EdgeInsets.fromLTRB(24, 48, 16, 42),', 'padding: const EdgeInsets.fromLTRB(18, 36, 14, 20),', 1)
           s = s.replace("fontSize: 30, fontWeight: FontWeight.w400", "fontSize: 24, fontWeight: FontWeight.w400", 1)
-          s = s.replace('Container(width: 44, height: 44,', 'Container(width: 40, height: 40,', 1)
-          s = s.replace('borderRadius: BorderRadius.circular(13)', 'borderRadius: BorderRadius.circular(12)', 2)
+          s = s.replace('Container(width: 44, height: 44,', 'Container(width: 36, height: 36,', 1)
+          s = s.replace('borderRadius: BorderRadius.circular(13)', 'borderRadius: BorderRadius.circular(11)', 2)
 
-          # HOME: compact square quick-action cards measured from the original Dashboard.
+          # Four compact quick-action cards from original Dashboard.
           start = s.find('class QuickCard extends StatelessWidget')
           end = s.find('class CollectionCard extends StatelessWidget', start)
           if start < 0 or end < 0:
               raise SystemExit('QuickCard block not found')
           block = s[start:end]
-          block = block.replace('borderRadius: BorderRadius.circular(18)', 'borderRadius: BorderRadius.circular(14)')
-          block = block.replace('height: 126,', 'height: 82,')
-          block = block.replace('padding: const EdgeInsets.all(12),', 'padding: const EdgeInsets.all(9),')
-          block = block.replace('Container(width: 40, height: 40,', 'Container(width: 30, height: 30,')
-          block = block.replace('borderRadius: BorderRadius.circular(12)', 'borderRadius: BorderRadius.circular(9)')
+          block = block.replace('borderRadius: BorderRadius.circular(18)', 'borderRadius: BorderRadius.circular(13)')
+          block = block.replace('height: 126,', 'height: 74,')
+          block = block.replace('padding: const EdgeInsets.all(12),', 'padding: const EdgeInsets.all(8),')
+          block = block.replace('Container(width: 40, height: 40,', 'Container(width: 29, height: 29,')
+          block = block.replace('borderRadius: BorderRadius.circular(12)', 'borderRadius: BorderRadius.circular(8)')
           s = s[:start] + block + s[end:]
+
+          # Original floating calculator is a regular compact FAB, not the oversized large variant.
+          s = s.replace('FloatingActionButton.large(backgroundColor: mint,', 'FloatingActionButton(backgroundColor: mint,', 1)
           p.write_text(s)
 
-          # CLIENTES: proportions from the original client list.
+          # Client-list proportions measured from the original list screen.
           p = Path('lib/customer_flow.dart')
           s = p.read_text()
-          s = s.replace('width: 265,\n                    height: 58,', 'width: 195,\n                    height: 44,', 1)
-          s = s.replace('borderRadius: BorderRadius.circular(29)', 'borderRadius: BorderRadius.circular(22)', 1)
+          s = s.replace('width: 265,\n                    height: 58,', 'width: 150,\n                    height: 42,', 1)
+          s = s.replace('borderRadius: BorderRadius.circular(29)', 'borderRadius: BorderRadius.circular(21)', 1)
           s = s.replace('radius: 24,\n          backgroundColor: mintDark,', 'radius: 20,\n          backgroundColor: mintDark,', 1)
           s = s.replace('borderRadius: BorderRadius.circular(21)', 'borderRadius: BorderRadius.circular(16)', 1)
-          s = s.replace('contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 7)', 'contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 5)', 1)
+          s = s.replace('contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 7)', 'contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4)', 1)
           p.write_text(s)
 
-          # PAGAMENTO: original legacy title and compact save action.
+          # Payment screen title/action verified in the original video.
           p = Path('lib/payment_flow.dart')
           s = p.read_text()
           s = s.replace("const Text('Adicionar Pagamento', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900))", "const Text('Adicionar Empréstimo', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500))", 1)
