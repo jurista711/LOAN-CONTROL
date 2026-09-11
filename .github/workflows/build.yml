@@ -162,6 +162,7 @@ jobs:
           p = Path('lib/customer_detail_ref.dart')
           s = p.read_text()
           s = s.replace('Icons.person_edit_alt_1_outlined', 'Icons.edit_outlined')
+          s = s.replace('margin: const EdgeInsets.only(top: -16),', 'transform: Matrix4.translationValues(0, -16, 0),')
           p.write_text(s)
           PY
       - name: Get packages
