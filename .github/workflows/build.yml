@@ -67,6 +67,33 @@ jobs:
               "LoanWorkspacePage(loan: loan, customerName: customerName, customerId: widget.customer['id']?.toString()),",
           )
           p.write_text(s)
+
+          # Button routing validated against original main.dart.js/video reference.
+          p = Path('lib/loan_workspace.dart')
+          s = p.read_text()
+          if "import 'loan_button_actions.dart';" not in s:
+              s = s.replace("import 'payment_flow.dart';", "import 'payment_flow.dart';\nimport 'loan_button_actions.dart';", 1)
+          s = s.replace(
+              "onSelected: _notImplemented,",
+              "onSelected: (value) => LoanButtonActions.handleMenu(context, value, loan: {...widget.loan, ...detail}, customerName: customerName, customerId: widget.customerId, onReload: _load),",
+              1,
+          )
+          s = s.replace(
+              "onPressed: () => _notImplemented('Editar crédito'),",
+              "onPressed: () => LoanButtonActions.editCredit(context, loan: {...widget.loan, ...detail}, onReload: _load),",
+              1,
+          )
+          s = s.replace(
+              "onPressed: () => _notImplemented('Remover'),",
+              "onPressed: () => LoanButtonActions.removeLoan(context, loan: {...widget.loan, ...detail}),",
+              1,
+          )
+          s = s.replace(
+              "onPressed: () => _notImplemented('Imprimir'),",
+              "onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => LoanPreviewPage(loan: {...widget.loan, ...detail}, mode: 'plan'))),",
+              1,
+          )
+          p.write_text(s)
           PY
       - name: Apply verified visual proportions from original reference
         run: |
