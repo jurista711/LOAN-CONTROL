@@ -9,25 +9,21 @@ class ReceiptDetailPage extends StatefulWidget {
     this.receiptNumber,
     this.customerName = 'Cliente',
     this.amount = 0,
-    DateTime? paymentDate,
+    this.paymentDate,
     this.method = 'Dinheiro',
     this.note,
-  }) : paymentDate = paymentDate ?? const _FallbackDate();
+  });
 
   final String? paymentId;
   final dynamic receiptNumber;
   final String customerName;
   final double amount;
-  final DateTime paymentDate;
+  final DateTime? paymentDate;
   final String method;
   final String? note;
 
   @override
   State<ReceiptDetailPage> createState() => _ReceiptDetailPageState();
-}
-
-class _FallbackDate extends DateTime {
-  const _FallbackDate() : super(2000, 1, 1);
 }
 
 class _ReceiptDetailPageState extends State<ReceiptDetailPage> {
@@ -84,7 +80,7 @@ class _ReceiptDetailPageState extends State<ReceiptDetailPage> {
     } else {
       d = DateTime.tryParse((raw ?? '').toString())?.toLocal();
     }
-    if (d == null || d.year == 2000) return '-';
+    if (d == null) return '-';
     final base = '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
     return time ? '$base ${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}' : base;
   }
