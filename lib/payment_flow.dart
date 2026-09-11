@@ -83,13 +83,17 @@ class _ConnectedPaymentPageState extends State<ConnectedPaymentPage> {
   double get _interestOpen {
     if (installments.isEmpty) return 0;
     final row = installments.first;
-    final interest = toDouble(row['interest']);
+    final scheduled = toDouble(row['interest']);
+    final alreadyPaid = toDouble(row['interest_paid']);
+    if (scheduled > 0) return (scheduled - alreadyPaid).clamp(0, double.infinity).toDouble();
     final total = toDouble(row['total'] ?? row['amount']);
     final paid = toDouble(row['paid_amount']);
-    if (total <= 0) return interest;
+    if (total <= 0) return 0;
     final ratio = ((total - paid) / total).clamp(0.0, 1.0);
-    return interest * ratio;
+    return scheduled * ratio;
   }
+
+  double get _principalOpen => (_firstOpen - _interestOpen).clamp(0, double.infinity).toDouble();
 
   void _fillSuggestedAmount() {
     valueController.text = _selectedAmount.toStringAsFixed(2).replaceAll('.', ',');
@@ -103,12 +107,6 @@ class _ConnectedPaymentPageState extends State<ConnectedPaymentPage> {
       value = value.replaceAll(',', '.');
     }
     return double.tryParse(value) ?? 0;
-  }
-
-  String _paymentType(double amount) {
-    if (amount < _firstOpen - 0.009) return 'partial';
-    if (amount > _firstOpen + 0.009) return 'advance';
-    return 'total';
   }
 
   String _isoDate(DateTime d) =>
@@ -128,6 +126,34 @@ class _ConnectedPaymentPageState extends State<ConnectedPaymentPage> {
     if (picked != null) setState(() => paymentDate = picked);
   }
 
+  Future<bool> _askExtendInterestTerm() async {
+    return await showDialog<bool>(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('Estender prazo de pagamento?'),
+            content: const Text('Este pagamento cobre apenas os juros, por isso não reduz o saldo do principal. Você deseja estender o prazo de pagamento?'),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Não')),
+              FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Sim')),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
+  String _applyCode() {
+    switch (applyTo) {
+      case 'Somente Juros':
+        return 'interest';
+      case 'Juros de mora':
+        return 'late_interest';
+      case 'Apenas Capital':
+        return 'principal';
+      default:
+        return 'regular';
+    }
+  }
+
   Future<void> _save() async {
     if (installments.isEmpty || saving) return;
 
@@ -141,6 +167,16 @@ class _ConnectedPaymentPageState extends State<ConnectedPaymentPage> {
       setState(() => error = 'O valor do pagamento não pode exceder o valor dos juros da parcela atual.');
       return;
     }
+    if (applyTo == 'Apenas Capital' && amount > _principalOpen + 0.009) {
+      setState(() => error = 'O valor do pagamento não pode exceder o capital pendente da parcela atual.');
+      return;
+    }
+
+    var extendInterestTerm = false;
+    if (applyTo == 'Somente Juros') {
+      extendInterestTerm = await _askExtendInterestTerm();
+      if (!mounted) return;
+    }
 
     setState(() {
       saving = true;
@@ -148,24 +184,38 @@ class _ConnectedPaymentPageState extends State<ConnectedPaymentPage> {
     });
 
     try {
-      final type = _paymentType(amount);
-      final result = await rpc(
-        'cobrapp_app_register_payment_v3',
-        params: {
-          'p_installment_id': installments.first['id'],
-          'p_amount': amount,
-          'p_late_charge': 0,
-          'p_method': method,
-          'p_note': noteController.text.trim().isEmpty ? null : noteController.text.trim(),
-          'p_type': type,
-          'p_paid_at': _isoDate(paymentDate),
-        },
-      );
+      dynamic result;
+      if (applyTo == 'Juros e Principal' && amount > _firstOpen + 0.009) {
+        result = await rpc(
+          'cobrapp_app_register_payment_v3',
+          params: {
+            'p_installment_id': installments.first['id'],
+            'p_amount': amount,
+            'p_late_charge': 0,
+            'p_method': method,
+            'p_note': noteController.text.trim().isEmpty ? null : noteController.text.trim(),
+            'p_type': 'advance',
+            'p_paid_at': _isoDate(paymentDate),
+          },
+        );
+      } else {
+        result = await rpc(
+          'cobrapp_app_register_payment_v4',
+          params: {
+            'p_installment_id': installments.first['id'],
+            'p_amount': amount,
+            'p_method': method,
+            'p_note': noteController.text.trim().isEmpty ? null : noteController.text.trim(),
+            'p_apply_to': _applyCode(),
+            'p_paid_at': _isoDate(paymentDate),
+            'p_extend_interest_term': extendInterestTerm,
+          },
+        );
+      }
 
       if (!mounted) return;
       final data = result is Map ? Map<String, dynamic>.from(result) : <String, dynamic>{};
-      final ok = data['ok'] == true;
-      if (!ok) {
+      if (data['ok'] != true) {
         throw Exception(data['message'] ?? 'Não foi possível registrar o pagamento.');
       }
 
@@ -209,10 +259,10 @@ class _ConnectedPaymentPageState extends State<ConnectedPaymentPage> {
     final text = e.toString().replaceFirst('Exception: ', '');
     if (text.contains('Parcela não encontrada')) return 'A parcela não foi encontrada no Supabase. Atualize e tente novamente.';
     if (text.contains('Parcela já está paga')) return 'Essa parcela já foi paga. Atualize a tela.';
-    if (text.contains('Pagamento total deve ser igual')) return 'O valor do pagamento total precisa ser exatamente o valor em aberto da parcela.';
-    if (text.contains('Pagamento parcial deve ser menor')) return 'Para pagamento parcial, informe um valor menor que a parcela em aberto.';
-    if (text.contains('Valor maior que o total atualizado')) return 'O valor informado é maior que o permitido para esta parcela.';
+    if (text.contains('não pode exceder o valor dos juros')) return 'O valor do pagamento não pode exceder o valor dos juros da parcela atual.';
+    if (text.contains('não pode exceder o capital')) return 'O valor do pagamento não pode exceder o capital pendente da parcela atual.';
     if (text.contains('A data do pagamento não pode estar no futuro')) return 'A data do pagamento não pode estar no futuro.';
+    if (text.contains('crédito está fechado')) return 'Este crédito está fechado e não aceita novos pagamentos.';
     if (text.contains('Licença inválida')) return 'A ativação deste aparelho não é válida ou expirou.';
     return text;
   }
@@ -240,13 +290,7 @@ class _ConnectedPaymentPageState extends State<ConnectedPaymentPage> {
                 ),
                 const SizedBox(width: 10),
                 Expanded(child: Text(customerName, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900))),
-                PopupMenuButton<String>(
-                  icon: const Icon(Icons.more_vert),
-                  itemBuilder: (_) => const [
-                    PopupMenuItem(value: 'history', child: Text('Registro de pagamentos')),
-                  ],
-                  onSelected: (_) => Navigator.pop(context),
-                ),
+                const Icon(Icons.more_vert),
               ],
             ),
             const SizedBox(height: 10),
@@ -262,7 +306,10 @@ class _ConnectedPaymentPageState extends State<ConnectedPaymentPage> {
                     if (!loading) ...[
                       _amountRow('Valor da Parcela', money(_firstOpen), true),
                       _amountRow('Somente Juros', money(_interestOpen), false, onAdd: () {
-                        setState(() => applyTo = 'Somente Juros');
+                        setState(() {
+                          quantity = 1;
+                          applyTo = 'Somente Juros';
+                        });
                         valueController.text = _interestOpen.toStringAsFixed(2).replaceAll('.', ',');
                       }),
                       _amountRow('Dívida Total', money(debt), false, onAdd: () {
@@ -283,7 +330,7 @@ class _ConnectedPaymentPageState extends State<ConnectedPaymentPage> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text('Juros: ${money(_interestOpen)}'),
-                        Text('Principal: ${money((_firstOpen - _interestOpen).clamp(0, double.infinity).toDouble())}'),
+                        Text('Principal: ${money(_principalOpen)}'),
                       ],
                     ),
                     const SizedBox(height: 16),
@@ -293,13 +340,19 @@ class _ConnectedPaymentPageState extends State<ConnectedPaymentPage> {
                       items: const [
                         DropdownMenuItem(value: 'Juros e Principal', child: Text('Juros e Principal')),
                         DropdownMenuItem(value: 'Somente Juros', child: Text('Somente Juros')),
+                        DropdownMenuItem(value: 'Juros de mora', child: Text('Juros de mora')),
+                        DropdownMenuItem(value: 'Apenas Capital', child: Text('Apenas Capital')),
                       ],
                       onChanged: (value) {
-                        if (value != null) {
-                          setState(() => applyTo = value);
-                          if (value == 'Somente Juros') {
-                            valueController.text = _interestOpen.toStringAsFixed(2).replaceAll('.', ',');
-                          }
+                        if (value == null) return;
+                        setState(() {
+                          applyTo = value;
+                          if (value != 'Juros e Principal') quantity = 1;
+                        });
+                        if (value == 'Somente Juros') {
+                          valueController.text = _interestOpen.toStringAsFixed(2).replaceAll('.', ',');
+                        } else if (value == 'Apenas Capital') {
+                          valueController.text = _principalOpen.toStringAsFixed(2).replaceAll('.', ',');
                         }
                       },
                     ),
@@ -381,12 +434,12 @@ class _ConnectedPaymentPageState extends State<ConnectedPaymentPage> {
               child: Row(
                 children: [
                   IconButton(
-                    onPressed: quantity > 1 ? () { setState(() => quantity--); _fillSuggestedAmount(); } : null,
+                    onPressed: applyTo == 'Juros e Principal' && quantity > 1 ? () { setState(() => quantity--); _fillSuggestedAmount(); } : null,
                     icon: const Icon(Icons.remove),
                   ),
                   Text('$quantity', style: const TextStyle(fontWeight: FontWeight.w900)),
                   IconButton(
-                    onPressed: quantity < installments.length ? () { setState(() => quantity++); _fillSuggestedAmount(); } : null,
+                    onPressed: applyTo == 'Juros e Principal' && quantity < installments.length ? () { setState(() => quantity++); _fillSuggestedAmount(); } : null,
                     icon: const Icon(Icons.add),
                   ),
                 ],
