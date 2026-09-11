@@ -64,6 +64,37 @@ jobs:
           )
           p.write_text(s)
           PY
+      - name: Apply verified visual proportions from original reference
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          # HOME: the original reference shows compact square quick-action cards.
+          p = Path('lib/main.dart')
+          s = p.read_text()
+          start = s.find('class QuickCard extends StatelessWidget')
+          end = s.find('class CollectionCard extends StatelessWidget', start)
+          if start < 0 or end < 0:
+              raise SystemExit('QuickCard block not found')
+          block = s[start:end]
+          block = block.replace('borderRadius: BorderRadius.circular(18)', 'borderRadius: BorderRadius.circular(14)')
+          block = block.replace('height: 126,', 'height: 86,')
+          block = block.replace('padding: const EdgeInsets.all(12),', 'padding: const EdgeInsets.all(9),')
+          block = block.replace('Container(width: 40, height: 40,', 'Container(width: 30, height: 30,')
+          block = block.replace('borderRadius: BorderRadius.circular(12)', 'borderRadius: BorderRadius.circular(9)')
+          s = s[:start] + block + s[end:]
+          p.write_text(s)
+
+          # CLIENTES: dimensions measured against the original client-list reference.
+          p = Path('lib/customer_flow.dart')
+          s = p.read_text()
+          s = s.replace('width: 265,\n                    height: 58,', 'width: 195,\n                    height: 44,', 1)
+          s = s.replace('borderRadius: BorderRadius.circular(29)', 'borderRadius: BorderRadius.circular(22)', 1)
+          s = s.replace('radius: 24,\n          backgroundColor: mintDark,', 'radius: 20,\n          backgroundColor: mintDark,', 1)
+          s = s.replace('borderRadius: BorderRadius.circular(21)', 'borderRadius: BorderRadius.circular(16)', 1)
+          s = s.replace('contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 7)', 'contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 5)', 1)
+          p.write_text(s)
+          PY
       - name: Fix source syntax
         run: |
           python3 - <<'PY'
