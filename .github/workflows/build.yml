@@ -25,6 +25,10 @@ jobs:
             sed -i "/import 'package:flutter\/material.dart';/a import 'customer_flow.dart';" lib/main.dart
           fi
           sed -i '0,/const CustomersPage()/s//const OriginalCustomerFlow()/' lib/main.dart
+          if ! grep -q "import 'payment_flow.dart';" lib/customer_flow.dart; then
+            sed -i "/import 'main.dart';/a import 'payment_flow.dart';" lib/customer_flow.dart
+          fi
+          sed -i 's/builder: (_) => OriginalPaymentPage(loan: loan)/builder: (_) => ConnectedPaymentPage(loan: loan)/' lib/customer_flow.dart
       - name: Fix source syntax
         run: |
           python3 - <<'PY'
