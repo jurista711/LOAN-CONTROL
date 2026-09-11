@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'main.dart';
+import 'receipt_detail.dart';
 
 class ConnectedPaymentPage extends StatefulWidget {
   const ConnectedPaymentPage({super.key, required this.loan});
@@ -23,6 +24,7 @@ class _ConnectedPaymentPageState extends State<ConnectedPaymentPage> {
   String applyTo = 'Juros e Principal';
   bool share = true;
   String? error;
+  DateTime paymentDate = DateTime.now();
 
   @override
   void initState() {
@@ -52,7 +54,7 @@ class _ConnectedPaymentPageState extends State<ConnectedPaymentPage> {
         installments = rows;
         loading = false;
         error = rows.isEmpty ? 'Não há parcelas pendentes para este empréstimo.' : null;
-        quantity = rows.isEmpty ? 1 : 1;
+        quantity = 1;
       });
       if (rows.isNotEmpty) _fillSuggestedAmount();
     } catch (e) {
@@ -109,12 +111,34 @@ class _ConnectedPaymentPageState extends State<ConnectedPaymentPage> {
     return 'total';
   }
 
+  String _isoDate(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  String _brDate(DateTime d) =>
+      '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
+
+  Future<void> _pickPaymentDate() async {
+    final today = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: paymentDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(today.year, today.month, today.day),
+    );
+    if (picked != null) setState(() => paymentDate = picked);
+  }
+
   Future<void> _save() async {
     if (installments.isEmpty || saving) return;
 
     final amount = _parseMoney(valueController.text);
     if (amount <= 0) {
       setState(() => error = 'Informe um valor de pagamento válido.');
+      return;
+    }
+
+    if (applyTo == 'Somente Juros' && amount > _interestOpen + 0.009) {
+      setState(() => error = 'O valor do pagamento não pode exceder o valor dos juros da parcela atual.');
       return;
     }
 
@@ -134,7 +158,7 @@ class _ConnectedPaymentPageState extends State<ConnectedPaymentPage> {
           'p_method': method,
           'p_note': noteController.text.trim().isEmpty ? null : noteController.text.trim(),
           'p_type': type,
-          'p_paid_at': DateTime.now().toIso8601String().substring(0, 10),
+          'p_paid_at': _isoDate(paymentDate),
         },
       );
 
@@ -154,6 +178,24 @@ class _ConnectedPaymentPageState extends State<ConnectedPaymentPage> {
           ),
         ),
       );
+
+      if (share && data['receipt_number'] != null) {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ReceiptDetailPage(
+              receiptNumber: data['receipt_number'],
+              customerName: (widget.loan['customer_name'] ?? 'Cliente').toString(),
+              amount: amount,
+              paymentDate: paymentDate,
+              method: method,
+              note: noteController.text.trim().isEmpty ? null : noteController.text.trim(),
+            ),
+          ),
+        );
+        if (!mounted) return;
+      }
+
       Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
@@ -170,6 +212,7 @@ class _ConnectedPaymentPageState extends State<ConnectedPaymentPage> {
     if (text.contains('Pagamento total deve ser igual')) return 'O valor do pagamento total precisa ser exatamente o valor em aberto da parcela.';
     if (text.contains('Pagamento parcial deve ser menor')) return 'Para pagamento parcial, informe um valor menor que a parcela em aberto.';
     if (text.contains('Valor maior que o total atualizado')) return 'O valor informado é maior que o permitido para esta parcela.';
+    if (text.contains('A data do pagamento não pode estar no futuro')) return 'A data do pagamento não pode estar no futuro.';
     if (text.contains('Licença inválida')) return 'A ativação deste aparelho não é válida ou expirou.';
     return text;
   }
@@ -197,7 +240,13 @@ class _ConnectedPaymentPageState extends State<ConnectedPaymentPage> {
                 ),
                 const SizedBox(width: 10),
                 Expanded(child: Text(customerName, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900))),
-                const Icon(Icons.more_vert),
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_vert),
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(value: 'history', child: Text('Registro de pagamentos')),
+                  ],
+                  onSelected: (_) => Navigator.pop(context),
+                ),
               ],
             ),
             const SizedBox(height: 10),
@@ -213,9 +262,11 @@ class _ConnectedPaymentPageState extends State<ConnectedPaymentPage> {
                     if (!loading) ...[
                       _amountRow('Valor da Parcela', money(_firstOpen), true),
                       _amountRow('Somente Juros', money(_interestOpen), false, onAdd: () {
+                        setState(() => applyTo = 'Somente Juros');
                         valueController.text = _interestOpen.toStringAsFixed(2).replaceAll('.', ',');
                       }),
                       _amountRow('Dívida Total', money(debt), false, onAdd: () {
+                        setState(() => applyTo = 'Juros e Principal');
                         valueController.text = debt.toStringAsFixed(2).replaceAll('.', ',');
                       }),
                     ],
@@ -242,9 +293,15 @@ class _ConnectedPaymentPageState extends State<ConnectedPaymentPage> {
                       items: const [
                         DropdownMenuItem(value: 'Juros e Principal', child: Text('Juros e Principal')),
                         DropdownMenuItem(value: 'Somente Juros', child: Text('Somente Juros')),
-                        DropdownMenuItem(value: 'Somente Principal', child: Text('Somente Principal')),
                       ],
-                      onChanged: (value) { if (value != null) setState(() => applyTo = value); },
+                      onChanged: (value) {
+                        if (value != null) {
+                          setState(() => applyTo = value);
+                          if (value == 'Somente Juros') {
+                            valueController.text = _interestOpen.toStringAsFixed(2).replaceAll('.', ',');
+                          }
+                        }
+                      },
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
@@ -259,9 +316,13 @@ class _ConnectedPaymentPageState extends State<ConnectedPaymentPage> {
                       onChanged: (value) { if (value != null) setState(() => method = value); },
                     ),
                     const SizedBox(height: 12),
-                    InputDecorator(
-                      decoration: const InputDecoration(labelText: 'Data do Pagamento', suffixIcon: Icon(Icons.calendar_month)),
-                      child: Text('${DateTime.now().day.toString().padLeft(2, '0')}/${DateTime.now().month.toString().padLeft(2, '0')}/${DateTime.now().year}'),
+                    InkWell(
+                      borderRadius: BorderRadius.circular(16),
+                      onTap: _pickPaymentDate,
+                      child: InputDecorator(
+                        decoration: const InputDecoration(labelText: 'Data do Pagamento', suffixIcon: Icon(Icons.calendar_month)),
+                        child: Text(_brDate(paymentDate)),
+                      ),
                     ),
                     const SizedBox(height: 12),
                     TextField(controller: noteController, maxLines: 2, decoration: const InputDecoration(labelText: 'Adicionar Nota')),
