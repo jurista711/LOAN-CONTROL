@@ -68,7 +68,6 @@ jobs:
           )
           p.write_text(s)
 
-          # Button routing validated against original main.dart.js/video reference.
           p = Path('lib/loan_workspace.dart')
           s = p.read_text()
           if "import 'loan_button_actions.dart';" not in s:
@@ -170,7 +169,15 @@ jobs:
       - name: Analyze
         run: flutter analyze lib --no-fatal-infos
       - name: Build debug APK
-        run: flutter build apk --debug --build-number="$GITHUB_RUN_NUMBER"
+        run: |
+          BUILD_NUMBER=$((100000 + GITHUB_RUN_NUMBER))
+          echo "Android versionCode: $BUILD_NUMBER"
+          flutter build apk --debug --build-number="$BUILD_NUMBER"
+      - name: Verify APK signing and package
+        run: |
+          APK=build/app/outputs/flutter-apk/app-debug.apk
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$APK" | grep -E "Signer #1 certificate SHA-256 digest|Verified"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | grep "package: name=" | head -1
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
