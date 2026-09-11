@@ -73,23 +73,30 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
 
-          # HOME: compact quick-action cards from the original Dashboard reference.
+          # HOME / CLIENTES shared wave header: original is much shorter than the first reconstruction.
           p = Path('lib/main.dart')
           s = p.read_text()
+          s = s.replace('height: 180,', 'height: 132,', 1)
+          s = s.replace('padding: const EdgeInsets.fromLTRB(24, 48, 16, 42),', 'padding: const EdgeInsets.fromLTRB(18, 40, 14, 24),', 1)
+          s = s.replace("fontSize: 30, fontWeight: FontWeight.w400", "fontSize: 24, fontWeight: FontWeight.w400", 1)
+          s = s.replace('Container(width: 44, height: 44,', 'Container(width: 40, height: 40,', 1)
+          s = s.replace('borderRadius: BorderRadius.circular(13)', 'borderRadius: BorderRadius.circular(12)', 2)
+
+          # HOME: compact square quick-action cards measured from the original Dashboard.
           start = s.find('class QuickCard extends StatelessWidget')
           end = s.find('class CollectionCard extends StatelessWidget', start)
           if start < 0 or end < 0:
               raise SystemExit('QuickCard block not found')
           block = s[start:end]
           block = block.replace('borderRadius: BorderRadius.circular(18)', 'borderRadius: BorderRadius.circular(14)')
-          block = block.replace('height: 126,', 'height: 86,')
+          block = block.replace('height: 126,', 'height: 82,')
           block = block.replace('padding: const EdgeInsets.all(12),', 'padding: const EdgeInsets.all(9),')
           block = block.replace('Container(width: 40, height: 40,', 'Container(width: 30, height: 30,')
           block = block.replace('borderRadius: BorderRadius.circular(12)', 'borderRadius: BorderRadius.circular(9)')
           s = s[:start] + block + s[end:]
           p.write_text(s)
 
-          # CLIENTES: measurements taken from the original client-list reference.
+          # CLIENTES: proportions from the original client list.
           p = Path('lib/customer_flow.dart')
           s = p.read_text()
           s = s.replace('width: 265,\n                    height: 58,', 'width: 195,\n                    height: 44,', 1)
@@ -99,7 +106,7 @@ jobs:
           s = s.replace('contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 7)', 'contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 5)', 1)
           p.write_text(s)
 
-          # PAGAMENTO: original screen uses the legacy title and a compact centered save button.
+          # PAGAMENTO: original legacy title and compact save action.
           p = Path('lib/payment_flow.dart')
           s = p.read_text()
           s = s.replace("const Text('Adicionar Pagamento', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900))", "const Text('Adicionar Empréstimo', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500))", 1)
@@ -134,7 +141,7 @@ jobs:
       - name: Analyze
         run: flutter analyze lib --no-fatal-infos
       - name: Build debug APK
-        run: flutter build apk --debug
+        run: flutter build apk --debug --build-number="$GITHUB_RUN_NUMBER"
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
