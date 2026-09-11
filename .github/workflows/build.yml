@@ -15,6 +15,26 @@ jobs:
           flutter-version: '3.47.2'
           channel: stable
           cache: true
+      - name: Restore stable debug signing key
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: loan-control-debug-signing-v1
+      - name: Ensure stable debug signing key
+        run: |
+          mkdir -p ~/.android
+          if [ ! -f ~/.android/debug.keystore ]; then
+            keytool -genkeypair -v \
+              -keystore ~/.android/debug.keystore \
+              -storepass android \
+              -alias androiddebugkey \
+              -keypass android \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=Android Debug,O=Roots Cobrancas,C=BR"
+          fi
+          keytool -list -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey | grep -E "SHA256:|Alias name:"
       - name: Create Android platform
         run: flutter create --platforms=android --org com.rootscobrancas --project-name loan_control .
       - name: Set app label
