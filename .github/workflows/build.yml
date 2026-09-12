@@ -10,6 +10,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Configure Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.47.2'
@@ -37,6 +42,21 @@ jobs:
           keytool -list -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey | grep -E "SHA256:|Alias name:"
       - name: Create Android platform
         run: flutter create --platforms=android --org com.rootscobrancas --project-name loan_control .
+      - name: Configure Android signing like Cobrapp12
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('android/app/build.gradle.kts')
+          s = p.read_text()
+          target = '        release {\n'
+          replacement = '        release {\n            signingConfig = signingConfigs.getByName("debug")\n'
+          if 'signingConfig = signingConfigs.getByName("debug")' not in s:
+              if target not in s:
+                  raise SystemExit('release block not found in build.gradle.kts')
+              s = s.replace(target, replacement, 1)
+          p.write_text(s)
+          PY
+          grep -n "signingConfig" android/app/build.gradle.kts
       - name: Set app label
         run: sed -i 's/android:label="loan_control"/android:label="Roots Cobranças"/' android/app/src/main/AndroidManifest.xml
       - name: Integrate reconstructed flows
@@ -111,7 +131,7 @@ jobs:
               raise SystemExit('QuickCard block not found')
           block = s[start:end]
           block = block.replace('borderRadius: BorderRadius.circular(18)', 'borderRadius: BorderRadius.circular(13)')
-          block = block.replace('height: 126,', 'height: 74,')
+          block = block.replace('height: 126,', 'height: 82,')
           block = block.replace('padding: const EdgeInsets.all(12),', 'padding: const EdgeInsets.all(8),')
           block = block.replace('Container(width: 40, height: 40,', 'Container(width: 29, height: 29,')
           block = block.replace('borderRadius: BorderRadius.circular(12)', 'borderRadius: BorderRadius.circular(8)')
@@ -167,14 +187,14 @@ jobs:
         run: flutter pub get
       - name: Analyze
         run: flutter analyze lib --no-fatal-infos
-      - name: Build debug APK
+      - name: Build release APK
         run: |
           BUILD_NUMBER=$((100000 + GITHUB_RUN_NUMBER))
           echo "Android versionCode: $BUILD_NUMBER"
-          flutter build apk --debug --build-number="$BUILD_NUMBER"
+          flutter build apk --release --build-number="$BUILD_NUMBER"
       - name: Force stable APK signing key
         run: |
-          APK=build/app/outputs/flutter-apk/app-debug.apk
+          APK=build/app/outputs/flutter-apk/app-release.apk
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" sign \
             --ks "$HOME/.android/debug.keystore" \
             --ks-key-alias androiddebugkey \
@@ -183,7 +203,7 @@ jobs:
             "$APK"
       - name: Verify APK signing and package
         run: |
-          APK=build/app/outputs/flutter-apk/app-debug.apk
+          APK=build/app/outputs/flutter-apk/app-release.apk
           EXPECTED=$(keytool -list -v -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey | awk '/SHA256:/{gsub(":", "", $2); print tolower($2); exit}')
           ACTUAL=$("$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$APK" | awk -F': ' '/Signer #1 certificate SHA-256 digest/{print tolower($2); exit}')
           echo "Expected signer: $EXPECTED"
@@ -195,5 +215,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: LOAN-CONTROL-APK-TESTE
-          path: build/app/outputs/flutter-apk/app-debug.apk
+          path: build/app/outputs/flutter-apk/app-release.apk
           retention-days: 14
