@@ -10,21 +10,25 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Configure Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
+
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.47.2'
           channel: stable
           cache: true
+
       - name: Restore stable debug signing key
         uses: actions/cache@v4
         with:
           path: ~/.android/debug.keystore
           key: loan-control-debug-signing-v1
+
       - name: Ensure stable debug signing key
         run: |
           mkdir -p ~/.android
@@ -40,8 +44,61 @@ jobs:
               -dname "CN=Android Debug,O=Roots Cobrancas,C=BR"
           fi
           keytool -list -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey | grep -E "SHA256:|Alias name:"
+
       - name: Create Android platform
         run: flutter create --platforms=android --org com.rootscobrancas --project-name loan_control .
+
+      - name: Restore Android permissions and request notifications
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          manifest = Path('android/app/src/main/AndroidManifest.xml')
+          s = manifest.read_text()
+          permissions = [
+              '<uses-permission android:name="android.permission.INTERNET" />',
+              '<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />',
+              '<uses-permission android:name="android.permission.VIBRATE" />',
+          ]
+          marker = '<manifest xmlns:android="http://schemas.android.com/apk/res/android">'
+          if marker not in s:
+              raise SystemExit('Android manifest header not found')
+          missing = [p for p in permissions if p not in s]
+          if missing:
+              s = s.replace(marker, marker + '\n    ' + '\n    '.join(missing), 1)
+          manifest.write_text(s)
+
+          main_activity = Path('android/app/src/main/kotlin/com/rootscobrancas/loan_control/MainActivity.kt')
+          main_activity.write_text('''package com.rootscobrancas.loan_control
+
+import android.Manifest
+import android.os.Build
+import android.os.Bundle
+import android.content.pm.PackageManager
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import io.flutter.embedding.android.FlutterActivity
+
+class MainActivity : FlutterActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                1001
+            )
+        }
+    }
+}
+''')
+          PY
+          echo "--- AndroidManifest permissions ---"
+          grep -n "uses-permission" android/app/src/main/AndroidManifest.xml
+          echo "--- MainActivity notification request ---"
+          grep -n "POST_NOTIFICATIONS" android/app/src/main/kotlin/com/rootscobrancas/loan_control/MainActivity.kt
+
       - name: Configure Android signing like Cobrapp12
         run: |
           python3 - <<'PY'
@@ -57,8 +114,10 @@ jobs:
           p.write_text(s)
           PY
           grep -n "signingConfig" android/app/build.gradle.kts
+
       - name: Set app label
         run: sed -i 's/android:label="loan_control"/android:label="Roots Cobranças"/' android/app/src/main/AndroidManifest.xml
+
       - name: Integrate reconstructed flows
         run: |
           if ! grep -q "import 'customer_flow.dart';" lib/main.dart; then
@@ -114,6 +173,7 @@ jobs:
           )
           p.write_text(s)
           PY
+
       - name: Apply verified visual proportions from original reference
         run: |
           python3 - <<'PY'
@@ -160,6 +220,7 @@ jobs:
               s = s.replace(close_old, close_new, 1)
           p.write_text(s)
           PY
+
       - name: Fix source syntax
         run: |
           python3 - <<'PY'
@@ -183,15 +244,19 @@ jobs:
           s = s.replace('margin: const EdgeInsets.only(top: -16),', 'transform: Matrix4.translationValues(0, -16, 0),')
           p.write_text(s)
           PY
+
       - name: Get packages
         run: flutter pub get
+
       - name: Analyze
         run: flutter analyze lib --no-fatal-infos
+
       - name: Build release APK
         run: |
           BUILD_NUMBER=$((100000 + GITHUB_RUN_NUMBER))
           echo "Android versionCode: $BUILD_NUMBER"
           flutter build apk --release --build-number="$BUILD_NUMBER"
+
       - name: Force stable APK signing key
         run: |
           APK=build/app/outputs/flutter-apk/app-release.apk
@@ -201,7 +266,8 @@ jobs:
             --ks-pass pass:android \
             --key-pass pass:android \
             "$APK"
-      - name: Verify APK signing and package
+
+      - name: Verify APK signing package and permissions
         run: |
           APK=build/app/outputs/flutter-apk/app-release.apk
           EXPECTED=$(keytool -list -v -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey | awk '/SHA256:/{gsub(":", "", $2); print tolower($2); exit}')
@@ -211,6 +277,11 @@ jobs:
           test "$EXPECTED" = "$ACTUAL"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify "$APK"
           "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | grep "package: name=" | head -1
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump permissions "$APK" | tee /tmp/apk_permissions.txt
+          grep -q "android.permission.INTERNET" /tmp/apk_permissions.txt
+          grep -q "android.permission.POST_NOTIFICATIONS" /tmp/apk_permissions.txt
+          grep -q "android.permission.VIBRATE" /tmp/apk_permissions.txt
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
