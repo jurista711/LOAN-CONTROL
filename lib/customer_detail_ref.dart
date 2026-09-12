@@ -35,13 +35,18 @@ class _ReferenceCustomerDetailPageState extends State<ReferenceCustomerDetailPag
           .map((e) => Map<String, dynamic>.from(e as Map))
           .where((loan) => loan['customer_id']?.toString() == customerId)
           .toList();
+
       final enriched = await Future.wait(base.map((loan) async {
         try {
-          final detail = await rpc('cobrapp_app_get_loan_detail', params: {'p_loan_id': loan['id']});
+          final detail = await rpc(
+            'cobrapp_app_get_loan_detail',
+            params: {'p_loan_id': loan['id']},
+          );
           if (detail is Map) return {...loan, ...Map<String, dynamic>.from(detail)};
         } catch (_) {}
         return loan;
       }));
+
       if (!mounted) return;
       setState(() {
         loans = enriched;
@@ -66,11 +71,16 @@ class _ReferenceCustomerDetailPageState extends State<ReferenceCustomerDetailPag
 
   String _frequency(dynamic raw) {
     switch ((raw ?? '').toString().toLowerCase()) {
-      case 'daily': return 'Diário';
-      case 'weekly': return 'Semanal';
-      case 'biweekly': return 'Quinzenal';
-      case 'monthly': return 'Mensal';
-      default: return (raw ?? 'Mensal').toString();
+      case 'daily':
+        return 'Diário';
+      case 'weekly':
+        return 'Semanal';
+      case 'biweekly':
+        return 'Quinzenal';
+      case 'monthly':
+        return 'Mensal';
+      default:
+        return (raw ?? 'Mensal').toString();
     }
   }
 
@@ -110,10 +120,18 @@ class _ReferenceCustomerDetailPageState extends State<ReferenceCustomerDetailPag
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              CircleAvatar(
-                radius: 45,
-                backgroundColor: const Color(0xFF647C76),
-                child: Text(name.isEmpty ? '?' : name[0].toUpperCase(), style: const TextStyle(fontSize: 33, color: mint, fontWeight: FontWeight.w800)),
+              Container(
+                width: 90,
+                height: 90,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF647C76),
+                  borderRadius: BorderRadius.circular(22),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  name.isEmpty ? '?' : name[0].toUpperCase(),
+                  style: const TextStyle(fontSize: 33, color: mint, fontWeight: FontWeight.w800),
+                ),
               ),
               const SizedBox(height: 14),
               Text(name, textAlign: TextAlign.center, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w700)),
@@ -164,12 +182,18 @@ class _ReferenceCustomerDetailPageState extends State<ReferenceCustomerDetailPag
               ListTile(
                 leading: const Icon(Icons.person_off_outlined, color: orange),
                 title: const Text('Desativar'),
-                onTap: () { Navigator.pop(context); _notImplemented('Desativar cliente'); },
+                onTap: () {
+                  Navigator.pop(context);
+                  _notImplemented('Desativar cliente');
+                },
               ),
               ListTile(
                 leading: const Icon(Icons.delete_outline, color: Colors.redAccent),
                 title: const Text('Remover'),
-                onTap: () { Navigator.pop(context); _notImplemented('Remover cliente'); },
+                onTap: () {
+                  Navigator.pop(context);
+                  _notImplemented('Remover cliente');
+                },
               ),
             ],
           ),
@@ -186,91 +210,106 @@ class _ReferenceCustomerDetailPageState extends State<ReferenceCustomerDetailPag
     final paid = loans.where(_isPaid).toList();
 
     return Scaffold(
-      backgroundColor: bg,
+      backgroundColor: const Color(0xFF061B15),
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: _load,
           child: ListView(
             padding: EdgeInsets.zero,
             children: [
-              const SizedBox(height: 70, child: _CustomerWave()),
+              SizedBox(
+                height: 72,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: const [
+                    _OriginalWave(),
+                  ],
+                ),
+              ),
               Transform.translate(
-                offset: const Offset(0, -17),
+                offset: const Offset(0, -42),
                 child: Container(
-                  padding: const EdgeInsets.fromLTRB(8, 0, 8, 14),
+                  padding: const EdgeInsets.fromLTRB(14, 10, 14, 16),
                   decoration: const BoxDecoration(
-                    color: Color(0xFF1D1D20),
-                    borderRadius: BorderRadius.vertical(bottom: Radius.circular(30)),
-                    boxShadow: [BoxShadow(color: Color(0x6648D8B1), blurRadius: 18, offset: Offset(0, 7))],
+                    color: Color(0xFF1F1F22),
+                    borderRadius: BorderRadius.vertical(bottom: Radius.circular(26)),
+                    boxShadow: [BoxShadow(color: Color(0x3330C99B), blurRadius: 24, offset: Offset(0, 14))],
                   ),
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           SizedBox(
-                            width: 42,
-                            height: 42,
-                            child: IconButton.filledTonal(
-                              onPressed: () => Navigator.pop(context),
-                              icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 22),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Padding(
-                              padding: const EdgeInsets.only(top: 8),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w500)),
-                                  if (document.isNotEmpty) ...[
-                                    const SizedBox(height: 2),
-                                    Row(children: [
-                                      const Icon(Icons.badge_outlined, color: mint, size: 17),
-                                      const SizedBox(width: 5),
-                                      Text(document, style: const TextStyle(fontSize: 14.5)),
-                                    ]),
-                                  ],
-                                ],
+                            width: 46,
+                            height: 46,
+                            child: Material(
+                              color: const Color(0xFF30403E),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(11),
+                                side: const BorderSide(color: Color(0xFF3D615A)),
+                              ),
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(11),
+                                onTap: () => Navigator.pop(context),
+                                child: const Icon(Icons.arrow_back_ios_new_rounded, color: mint, size: 30),
                               ),
                             ),
                           ),
-                          CircleAvatar(
-                            radius: 36,
-                            backgroundColor: const Color(0xFF607A73),
-                            child: Text(name.isEmpty ? '?' : name[0].toUpperCase(), style: const TextStyle(fontSize: 29, color: mint, fontWeight: FontWeight.w700)),
+                          const Spacer(),
+                          Container(
+                            width: 68,
+                            height: 68,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF5F8179),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              name.isEmpty ? '?' : name[0].toUpperCase(),
+                              style: const TextStyle(fontSize: 34, color: mint, fontWeight: FontWeight.w700),
+                            ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 8),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(colors: [Color(0xFF2D9070), Color(0xFF96E5CF)]),
-                            borderRadius: BorderRadius.circular(18),
-                            boxShadow: const [BoxShadow(color: Color(0x443DD0A5), blurRadius: 10)],
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.route_outlined, size: 15),
-                              SizedBox(width: 5),
-                              Text('Não alocado', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
-                              SizedBox(width: 7),
-                              Icon(Icons.edit_rounded, size: 14),
-                            ],
-                          ),
+                      const SizedBox(height: 4),
+                      Text(name, style: const TextStyle(fontSize: 27, fontWeight: FontWeight.w400)),
+                      if (document.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            const Icon(Icons.badge_outlined, color: mint, size: 20),
+                            const SizedBox(width: 8),
+                            Text(document, style: const TextStyle(fontSize: 18)),
+                          ],
+                        ),
+                      ],
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 9),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(colors: [Color(0xFF2C8F76), Color(0xFF8EDBCC)]),
+                          borderRadius: BorderRadius.circular(22),
+                          boxShadow: const [BoxShadow(color: Color(0x4046CBA6), blurRadius: 16, offset: Offset(0, 7))],
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.route_outlined, color: Colors.white, size: 17),
+                            SizedBox(width: 8),
+                            Text('Não alocado', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+                            SizedBox(width: 8),
+                            Icon(Icons.edit_rounded, color: Colors.white, size: 16),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 18),
                       Row(
                         children: [
-                          Expanded(child: _CustomerAction(icon: Icons.person_outline, label: 'Em formaç...', onTap: _showCustomerInfo)),
-                          Expanded(child: _CustomerAction(icon: Icons.edit_outlined, label: 'Editar', onTap: () => _notImplemented('Editar cliente'))),
-                          Expanded(child: _CustomerAction(icon: Icons.more_vert_rounded, label: 'Mais opções', muted: true, onTap: _showMoreOptions)),
+                          Expanded(child: _OriginalAction(icon: Icons.person_outline, label: 'Em formação', onTap: _showCustomerInfo)),
+                          Expanded(child: _OriginalAction(icon: Icons.edit_outlined, label: 'Editar', onTap: () => _notImplemented('Editar cliente'))),
+                          Expanded(child: _OriginalAction(icon: Icons.more_vert_rounded, label: 'Mais opções', muted: true, onTap: _showMoreOptions)),
                         ],
                       ),
                     ],
@@ -278,21 +317,21 @@ class _ReferenceCustomerDetailPageState extends State<ReferenceCustomerDetailPag
                 ),
               ),
               Transform.translate(
-                offset: const Offset(0, -8),
+                offset: const Offset(0, -25),
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(7, 0, 7, 102),
+                  padding: const EdgeInsets.fromLTRB(7, 0, 7, 110),
                   child: Column(
                     children: [
                       if (loading) const LinearProgressIndicator(minHeight: 2),
-                      _sectionHeader('Empréstimos Ativos', active.length, const Color(0xFF2BA5F7), Icons.trending_up_rounded),
-                      const SizedBox(height: 8),
+                      _sectionHeader('Empréstimos Ativos', active.length, const Color(0xFF2CA7FF), Icons.trending_up_rounded),
+                      const SizedBox(height: 13),
                       if (!loading && active.isEmpty)
                         const Padding(padding: EdgeInsets.all(16), child: Text('Sem crédito ativo', style: TextStyle(color: muted))),
                       for (final loan in active) _loanCard(name, loan, paidLoan: false),
                       if (paid.isNotEmpty) ...[
-                        const SizedBox(height: 14),
+                        const SizedBox(height: 16),
                         _sectionHeader('Empréstimos Pagos', paid.length, const Color(0xFF4DDE65), Icons.check_circle_outline_rounded),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 13),
                         for (final loan in paid) _loanCard(name, loan, paidLoan: true),
                       ],
                     ],
@@ -303,33 +342,46 @@ class _ReferenceCustomerDetailPageState extends State<ReferenceCustomerDetailPag
           ),
         ),
       ),
-      floatingActionButton: FloatingActionButton.small(
-        backgroundColor: const Color(0xFF58CDAE),
-        foregroundColor: Colors.white,
-        onPressed: () => _notImplemented('Etiquetas'),
-        child: const Icon(Icons.sell_outlined),
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 64),
+        child: SizedBox(
+          width: 48,
+          height: 48,
+          child: FloatingActionButton(
+            backgroundColor: const Color(0xFF5BCDB7),
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+            onPressed: () => _notImplemented('Etiquetas'),
+            child: const Icon(Icons.local_offer_outlined, size: 25),
+          ),
+        ),
       ),
       bottomNavigationBar: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(95, 6, 95, 9),
+          padding: const EdgeInsets.fromLTRB(107, 6, 107, 22),
           child: SizedBox(
-            height: 42,
+            height: 46,
             child: DecoratedBox(
               decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: [Color(0xFF17614D), Color(0xFF81DFC4)]),
-                borderRadius: BorderRadius.circular(15),
-                boxShadow: const [BoxShadow(color: Color(0x663DD0A5), blurRadius: 15)],
+                gradient: const LinearGradient(colors: [Color(0xFF176F5D), Color(0xFF8FE0CF)]),
+                borderRadius: BorderRadius.circular(17),
+                boxShadow: const [BoxShadow(color: Color(0x4749D8B0), blurRadius: 18, offset: Offset(0, 7))],
               ),
               child: FilledButton.icon(
-                style: FilledButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent),
+                style: FilledButton.styleFrom(
+                  backgroundColor: Colors.transparent,
+                  shadowColor: Colors.transparent,
+                  foregroundColor: Colors.white,
+                  padding: EdgeInsets.zero,
+                ),
                 onPressed: () => openPage(
                   context,
                   'Adicionar crédito',
                   CreateLoanPage(initialCustomerId: widget.customer['id']?.toString()),
                 ),
-                icon: const Icon(Icons.request_quote_outlined, size: 17),
-                label: const Text('Adicionar crédito', style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800)),
+                icon: const Icon(Icons.request_quote_outlined, size: 18),
+                label: const Text('Adicionar crédito', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500)),
               ),
             ),
           ),
@@ -341,18 +393,17 @@ class _ReferenceCustomerDetailPageState extends State<ReferenceCustomerDetailPag
   Widget _sectionHeader(String label, int count, Color color, IconData icon) {
     return Container(
       width: double.infinity,
-      height: 42,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: .13),
-        borderRadius: BorderRadius.circular(5),
+        color: const Color(0xFF0E3138),
+        borderRadius: BorderRadius.circular(6),
         border: Border(left: BorderSide(color: color, width: 4)),
       ),
       child: Row(
         children: [
-          Icon(icon, color: color, size: 18),
-          const SizedBox(width: 7),
-          Text('$label ($count)', style: TextStyle(color: color, fontSize: 15.5, fontWeight: FontWeight.w800)),
+          Icon(icon, color: color, size: 20),
+          const SizedBox(width: 8),
+          Text('$label ($count)', style: TextStyle(color: color, fontSize: 17, fontWeight: FontWeight.w800)),
         ],
       ),
     );
@@ -366,20 +417,23 @@ class _ReferenceCustomerDetailPageState extends State<ReferenceCustomerDetailPag
     final qty = int.tryParse('${loan['payments_number'] ?? 1}') ?? 1;
     final paymentValue = qty <= 0 ? total : total / qty;
     final rate = toDouble(loan['interest_rate']);
-    final note = (loan['note'] ?? '').toString().trim();
-    final rawId = (loan['loan_number'] ?? loan['code'] ?? loan['reference'] ?? loan['id'] ?? '').toString().replaceAll('-', '').toUpperCase();
+    final rawId = (loan['loan_number'] ?? loan['code'] ?? loan['reference'] ?? loan['id'] ?? '')
+        .toString()
+        .replaceAll('-', '')
+        .toUpperCase();
     final shortId = rawId.length >= 9 ? '${rawId.substring(0, 6)}-${rawId.substring(6, 9)}' : rawId;
+    final progress = total <= 0 ? 0.0 : (paid / total).clamp(0.0, 1.0);
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 9),
+      margin: const EdgeInsets.only(bottom: 13),
       decoration: BoxDecoration(
-        color: panel,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: paidLoan ? const Color(0xFF545454) : const Color(0xFF304F46)),
-        boxShadow: [BoxShadow(color: paidLoan ? const Color(0x22111111) : const Color(0x5535C99C), blurRadius: 13)],
+        color: const Color(0xFF202023),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFF2A4942)),
+        boxShadow: const [BoxShadow(color: Color(0x3830CD9E), blurRadius: 22, offset: Offset(0, 12))],
       ),
       child: InkWell(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
         onTap: () => Navigator.push(
           context,
           MaterialPageRoute(
@@ -391,75 +445,72 @@ class _ReferenceCustomerDetailPageState extends State<ReferenceCustomerDetailPag
           ),
         ),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(11, 10, 11, 10),
+          padding: const EdgeInsets.all(13),
           child: Column(
             children: [
               Row(
                 children: [
                   Container(
-                    width: 33,
-                    height: 33,
-                    decoration: BoxDecoration(color: const Color(0xFF324640), borderRadius: BorderRadius.circular(9)),
-                    child: const Icon(Icons.trending_up_rounded, color: Colors.amberAccent, size: 22),
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(color: const Color(0xFF31443F), borderRadius: BorderRadius.circular(8)),
+                    child: const Icon(Icons.trending_up_rounded, color: Color(0xFFF5D54C), size: 20),
                   ),
-                  const SizedBox(width: 7),
-                  Expanded(child: Text(money(amount), style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w900))),
+                  const SizedBox(width: 10),
+                  Expanded(child: Text(money(amount), style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900))),
                   if (shortId.isNotEmpty)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-                      decoration: BoxDecoration(border: Border.all(color: const Color(0xFF4A766A)), borderRadius: BorderRadius.circular(6)),
-                      child: Text(shortId, style: const TextStyle(color: mint, fontSize: 9.5, fontWeight: FontWeight.w700)),
+                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+                      decoration: BoxDecoration(border: Border.all(color: const Color(0xFF4C716A)), borderRadius: BorderRadius.circular(8)),
+                      child: Text(shortId, style: const TextStyle(color: mint, fontSize: 11, fontWeight: FontWeight.w700)),
                     ),
                 ],
+              ),
+              const SizedBox(height: 11),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(2),
+                child: SizedBox(
+                  height: 3,
+                  child: Row(
+                    children: [
+                      Expanded(flex: (progress * 1000).round().clamp(0, 1000), child: Container(color: const Color(0xFFF08A54))),
+                      Expanded(flex: ((1 - progress) * 1000).round().clamp(0, 1000), child: Container(color: const Color(0xFFEEEEEE))),
+                    ],
+                  ),
+                ),
               ),
               const SizedBox(height: 6),
-              Container(height: 2, color: paidLoan ? orange : Colors.white70),
-              const SizedBox(height: 5),
-              Align(alignment: Alignment.centerLeft, child: Text('Pago: ${money(paid)} / ${money(total)}', style: const TextStyle(fontSize: 10.5))),
+              Align(alignment: Alignment.centerLeft, child: Text('Pago: ${money(paid)} / ${money(total)}', style: const TextStyle(fontSize: 12.5))),
               if (!paidLoan) ...[
-                const SizedBox(height: 2),
-                Align(alignment: Alignment.centerLeft, child: Text('Saldo pendente: ${money(open)}', style: const TextStyle(color: mint, fontSize: 11.5, fontWeight: FontWeight.w800))),
+                const SizedBox(height: 4),
+                Align(alignment: Alignment.centerLeft, child: Text('Saldo pendente: ${money(open)}', style: const TextStyle(color: mint, fontSize: 13, fontWeight: FontWeight.w800))),
               ],
-              const SizedBox(height: 7),
+              const SizedBox(height: 12),
+              Container(height: 1, color: const Color(0xFF35534D)),
+              const SizedBox(height: 12),
               Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Expanded(child: _metric('Valor do pagamento', money(paymentValue), Icons.monetization_on_outlined)),
-                  Expanded(child: _metric('Cotas', '$qty', Icons.tag)),
-                  Expanded(child: _metric('Interesse', '${rate.toStringAsFixed(1)}', Icons.percent)),
-                  const Icon(Icons.chevron_right_rounded, color: mint, size: 25),
+                  Expanded(flex: 135, child: _metric('Valor do pagamento', money(paymentValue), Icons.monetization_on_outlined)),
+                  const SizedBox(width: 8),
+                  Expanded(flex: 80, child: _metric('Cotas', '$qty', Icons.tag)),
+                  const SizedBox(width: 8),
+                  Expanded(flex: 80, child: _metric('Interesse', rate.toStringAsFixed(1), Icons.percent)),
+                  const SizedBox(width: 8),
+                  const Icon(Icons.chevron_right_rounded, color: mint, size: 31),
                 ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Expanded(child: _metric('Frequência de Pagamentos', _frequency(loan['payment_frequency']), Icons.calendar_month_outlined)),
-                  const Icon(Icons.calendar_month_outlined, color: mint, size: 13),
-                  const SizedBox(width: 4),
-                  Text(_date(loan['start_date']), style: const TextStyle(fontSize: 9.8)),
+                  const SizedBox(width: 10),
+                  const Icon(Icons.calendar_month_outlined, color: mint, size: 15),
+                  const SizedBox(width: 5),
+                  Text(_date(loan['start_date']), style: const TextStyle(fontSize: 11.5)),
                 ],
               ),
-              if (note.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                const Divider(height: 1, color: Color(0xFF38524A)),
-                const SizedBox(height: 7),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(Icons.sticky_note_2_outlined, color: mint, size: 13),
-                    const SizedBox(width: 5),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Nota', style: TextStyle(color: muted, fontSize: 9.8)),
-                          const SizedBox(height: 2),
-                          Text(note, style: const TextStyle(fontSize: 10.5), maxLines: 3, overflow: TextOverflow.ellipsis),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ],
             ],
           ),
         ),
@@ -470,41 +521,54 @@ class _ReferenceCustomerDetailPageState extends State<ReferenceCustomerDetailPag
   Widget _metric(String label, String value, IconData icon) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: muted, fontSize: 9.2)),
-          const SizedBox(height: 2),
+          Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xFF77747A), fontSize: 11)),
+          const SizedBox(height: 6),
           Row(
             children: [
-              Icon(icon, size: 12, color: mint),
-              const SizedBox(width: 3),
-              Flexible(child: Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800))),
+              Icon(icon, size: 15, color: mint),
+              const SizedBox(width: 4),
+              Flexible(child: Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700))),
             ],
           ),
         ],
       );
 }
 
-class _CustomerWave extends StatelessWidget {
-  const _CustomerWave();
+class _OriginalWave extends StatelessWidget {
+  const _OriginalWave();
+
   @override
   Widget build(BuildContext context) => ClipPath(
-        clipper: _CustomerWaveClipper(),
-        child: Container(decoration: const BoxDecoration(gradient: LinearGradient(colors: [Color(0xFF1D6A50), Color(0xFF9EE8D2)]))),
+        clipper: _OriginalWaveClipper(),
+        child: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(colors: [Color(0xFF287763), Color(0xFF9DE1D3)]),
+          ),
+        ),
       );
 }
 
-class _CustomerWaveClipper extends CustomClipper<Path> {
+class _OriginalWaveClipper extends CustomClipper<Path> {
   @override
   Path getClip(Size size) => Path()
-    ..lineTo(0, size.height * .62)
-    ..cubicTo(size.width * .2, size.height * .95, size.width * .52, size.height * .5, size.width, size.height * .73)
+    ..lineTo(0, size.height * .72)
+    ..cubicTo(size.width * .09, size.height * .79, size.width * .27, size.height * .84, size.width * .41, size.height * .75)
+    ..cubicTo(size.width * .62, size.height * .62, size.width * .76, size.height * .92, size.width, size.height * .78)
     ..lineTo(size.width, 0)
     ..close();
+
   @override
   bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
 }
 
-class _CustomerAction extends StatelessWidget {
-  const _CustomerAction({required this.icon, required this.label, required this.onTap, this.muted = false});
+class _OriginalAction extends StatelessWidget {
+  const _OriginalAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.muted = false,
+  });
+
   final IconData icon;
   final String label;
   final VoidCallback onTap;
@@ -519,10 +583,19 @@ class _CustomerAction extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 15, color: muted ? Colors.white70 : mint),
-              const SizedBox(width: 5),
+              Icon(icon, size: 17, color: muted ? const Color(0xFF9A979D) : const Color(0xFF72D3BF)),
+              const SizedBox(width: 6),
               Flexible(
-                child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11.5, color: muted ? Colors.white70 : Colors.white, fontWeight: FontWeight.w500)),
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.visible,
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: muted ? const Color(0xFF9A979D) : const Color(0xFF72D3BF),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
               ),
             ],
           ),
