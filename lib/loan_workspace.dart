@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'main.dart';
 import 'payment_flow.dart';
+import 'loan_button_actions.dart';
 
 class LoanWorkspacePage extends StatefulWidget {
   const LoanWorkspacePage({
@@ -74,38 +75,80 @@ class _LoanWorkspacePageState extends State<LoanWorkspacePage> {
 
   double get principal => toDouble(detail['amount'] ?? widget.loan['amount']);
   double get totalDebt => toDouble(detail['total_debt'] ?? widget.loan['total_debt']);
-  double get rate => toDouble(detail['interest_rate']);
+  double get rate => toDouble(detail['interest_rate'] ?? widget.loan['interest_rate']);
+  double get totalPaid => payments.fold<double>(0, (s, p) => s + toDouble(p['amount']));
+  double get principalPaid => payments.fold<double>(0, (s, p) => s + toDouble(p['principal_amount']));
+  double get interestPaid => payments.fold<double>(0, (s, p) => s + toDouble(p['interest_amount']));
+  double get totalInterest {
+    final explicit = toDouble(detail['total_interest']);
+    if (explicit > 0) return explicit;
+    return (totalDebt - principal).clamp(0, double.infinity).toDouble();
+  }
 
   String _frequency() {
     final value = (detail['payment_frequency'] ?? widget.loan['payment_frequency'] ?? '').toString().toLowerCase();
     switch (value) {
-      case 'weekly':
-        return 'Semanal';
-      case 'biweekly':
-        return 'Quinzenal';
-      case 'daily':
-        return 'Diário';
-      case 'monthly':
-        return 'Mensal';
-      default:
-        return value.isEmpty ? 'Mensal' : value;
+      case 'weekly': return 'Semanal';
+      case 'biweekly': return 'Quinzenal';
+      case 'daily': return 'Diário';
+      case 'monthly': return 'Mensal';
+      default: return value.isEmpty ? 'Mensal' : value;
     }
   }
 
   String _interestType() {
-    final value = (detail['interest_type'] ?? '').toString().toLowerCase();
+    final value = (detail['interest_type'] ?? widget.loan['interest_type'] ?? '').toString().toLowerCase();
     if (value == 'initial_capital') return 'Capital inicial';
     if (value == 'each_payment') return 'Por parcela';
     return value.isEmpty ? 'Capital inicial' : value;
   }
 
-  String _date(dynamic raw) {
+  String _date(dynamic raw, {bool shortYear = true}) {
     if (raw == null) return '-';
-    final text = raw.toString();
-    final d = DateTime.tryParse(text);
-    if (d == null) return text;
+    final d = DateTime.tryParse(raw.toString());
+    if (d == null) return raw.toString();
     const months = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
-    return '${d.day.toString().padLeft(2, '0')} ${months[d.month - 1]}. ${d.year.toString().substring(2)}';
+    final year = shortYear ? d.year.toString().substring(2) : d.year.toString();
+    return '${d.day.toString().padLeft(2, '0')} ${months[d.month - 1]}. $year';
+  }
+
+  String _loanId() {
+    final values = [detail['loan_number'], detail['code'], detail['reference'], detail['id'], widget.loan['id']];
+    for (final value in values) {
+      if (value != null && value.toString().trim().isNotEmpty) return value.toString();
+    }
+    return '-';
+  }
+
+  Map<String, dynamic>? get _nextOpenInstallment {
+    for (final row in installments) {
+      final total = toDouble(row['total'] ?? row['amount']);
+      final paid = toDouble(row['paid_amount']);
+      if (total - paid > 0.009) return row;
+    }
+    return installments.isEmpty ? null : installments.last;
+  }
+
+  int get _paidInstallments => installments.where((row) {
+        final total = toDouble(row['total'] ?? row['amount']);
+        final paid = toDouble(row['paid_amount']);
+        return total > 0 && paid + 0.009 >= total;
+      }).length;
+
+  int get _overdueInstallments {
+    final today = DateTime.now();
+    return installments.where((row) {
+      final due = DateTime.tryParse('${row['due_date'] ?? ''}');
+      final total = toDouble(row['total'] ?? row['amount']);
+      final paid = toDouble(row['paid_amount']);
+      return due != null && due.isBefore(DateTime(today.year, today.month, today.day)) && total - paid > 0.009;
+    }).length;
+  }
+
+  double get _paymentAmount {
+    final row = _nextOpenInstallment;
+    if (row == null) return 0;
+    return toDouble(row['total'] ?? row['amount']);
   }
 
   void _notImplemented(String label) {
@@ -113,6 +156,66 @@ class _LoanWorkspacePageState extends State<LoanWorkspacePage> {
       SnackBar(content: Text('$label ainda não foi ligado ao Supabase nesta reconstrução.')),
     );
   }
+
+  Future<void> _showCreditInfo() async {
+    final next = _nextOpenInstallment;
+    final capitalDebt = (principal - principalPaid).clamp(0, double.infinity).toDouble();
+    final pendingInterest = (totalInterest - interestPaid).clamp(0, double.infinity).toDouble();
+    final remainingDebt = (totalDebt - totalPaid).clamp(0, double.infinity).toDouble();
+    await showDialog<void>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: .72),
+      builder: (_) => Dialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 36),
+        backgroundColor: const Color(0xFF181519),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 410, maxHeight: 720),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(22, 24, 22, 18),
+            child: Column(
+              children: [
+                _infoRow('ID do empréstimo', _loanId()),
+                _infoRow('Data do empréstimo', _date(detail['start_date'] ?? widget.loan['start_date'], shortYear: false)),
+                _infoRow('Próxima data de pagamento', _date(next?['due_date'], shortYear: false)),
+                _infoRow('Data de vencimento do empréstimo', _date(detail['end_date'] ?? widget.loan['end_date'], shortYear: false)),
+                _infoRow('Pagamentos em atraso', '$_overdueInstallments'),
+                _infoRow('Interesse', '${rate.toStringAsFixed(1)} %'),
+                _infoRow('Valor dos juros', money(totalInterest)),
+                _infoRow('Parcelas pagas', '$_paidInstallments/${installments.length}'),
+                _infoRow('Frequência de Pagamento', _frequency()),
+                _infoRow('Valor do pagamento', money(_paymentAmount)),
+                _infoRow('Montante total do empréstimo', money(principal)),
+                _infoRow('Empréstimo + juros', money(totalDebt)),
+                _infoRow('Total pago', money(totalPaid)),
+                const Divider(color: Color(0xFF42665E), height: 20),
+                _infoRow('Dívida de Capital', money(capitalDebt)),
+                _infoRow('Juros Pendentes', money(pendingInterest)),
+                _infoRow('Dívida total', money(remainingDebt)),
+                const SizedBox(height: 14),
+                IconButton.filledTonal(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _infoRow(String label, String value) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(flex: 6, child: Text(label, style: const TextStyle(fontSize: 15.5, color: Colors.white))),
+            const SizedBox(width: 12),
+            Expanded(flex: 4, child: Text(value, textAlign: TextAlign.right, style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700))),
+          ],
+        ),
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -174,7 +277,10 @@ class _LoanWorkspacePageState extends State<LoanWorkspacePage> {
             heroTag: 'print-loan',
             backgroundColor: const Color(0xFF5FCFB0),
             foregroundColor: Colors.white,
-            onPressed: () => _notImplemented('Imprimir'),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => LoanPreviewPage(loan: {...widget.loan, ...detail}, mode: 'plan')),
+            ),
             child: const Icon(Icons.print),
           ),
         ],
@@ -187,18 +293,12 @@ class _LoanWorkspacePageState extends State<LoanWorkspacePage> {
             height: 44,
             child: DecoratedBox(
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF17614D), Color(0xFF80DFC3)],
-                ),
+                gradient: const LinearGradient(colors: [Color(0xFF17614D), Color(0xFF80DFC3)]),
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: const [BoxShadow(color: Color(0x553DD0A5), blurRadius: 14)],
               ),
               child: FilledButton.icon(
-                style: FilledButton.styleFrom(
-                  backgroundColor: Colors.transparent,
-                  shadowColor: Colors.transparent,
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                ),
+                style: FilledButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent),
                 onPressed: () async {
                   final changed = await Navigator.push<bool>(
                     context,
@@ -231,23 +331,22 @@ class _LoanWorkspacePageState extends State<LoanWorkspacePage> {
         CircleAvatar(
           radius: 17,
           backgroundColor: const Color(0xFF365B50),
-          child: Text(
-            customerName.isEmpty ? '?' : customerName[0].toUpperCase(),
-            style: const TextStyle(color: mint, fontWeight: FontWeight.w800),
-          ),
+          child: Text(customerName.isEmpty ? '?' : customerName[0].toUpperCase(), style: const TextStyle(color: mint, fontWeight: FontWeight.w800)),
         ),
         const SizedBox(width: 8),
         Expanded(
-          child: Text(
-            customerName,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w500),
-          ),
+          child: Text(customerName, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w500)),
         ),
         PopupMenuButton<String>(
           icon: const Icon(Icons.more_vert),
-          onSelected: _notImplemented,
+          onSelected: (value) => LoanButtonActions.handleMenu(
+            context,
+            value,
+            loan: {...widget.loan, ...detail},
+            customerName: customerName,
+            customerId: widget.customerId,
+            onReload: _load,
+          ),
           itemBuilder: (_) => const [
             PopupMenuItem(value: 'Renovar', child: Text('Renovar')),
             PopupMenuItem(value: 'Marcar como Pago', child: Text('Marcar como Pago')),
@@ -264,8 +363,12 @@ class _LoanWorkspacePageState extends State<LoanWorkspacePage> {
 
   Widget _loanHeaderCard() {
     return Card(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(24),
+        side: const BorderSide(color: Color(0xFF48534F)),
+      ),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
         child: Column(
           children: [
             Row(
@@ -275,10 +378,7 @@ class _LoanWorkspacePageState extends State<LoanWorkspacePage> {
                 Container(
                   width: 66,
                   height: 66,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF30433E),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
+                  decoration: BoxDecoration(color: const Color(0xFF30433E), borderRadius: BorderRadius.circular(16)),
                   child: const Icon(Icons.trending_up_rounded, color: Colors.amberAccent, size: 34),
                 ),
               ],
@@ -291,26 +391,26 @@ class _LoanWorkspacePageState extends State<LoanWorkspacePage> {
                 const SizedBox(width: 66),
               ],
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 10),
             Row(
               children: [
                 Expanded(
                   child: TextButton.icon(
-                    onPressed: () {},
-                    icon: const Icon(Icons.visibility_outlined, size: 18),
-                    label: Text(statusPt(detail['status'] ?? widget.loan['status'])),
+                    onPressed: _showCreditInfo,
+                    icon: const Icon(Icons.info_outline, size: 18),
+                    label: const Text('Informações do crédito', textAlign: TextAlign.center),
                   ),
                 ),
                 Expanded(
                   child: TextButton.icon(
-                    onPressed: () => _notImplemented('Editar crédito'),
+                    onPressed: () => LoanButtonActions.editCredit(context, loan: {...widget.loan, ...detail}, onReload: _load),
                     icon: const Icon(Icons.edit_outlined, size: 18),
                     label: const Text('Editar crédito'),
                   ),
                 ),
                 Expanded(
                   child: TextButton.icon(
-                    onPressed: () => _notImplemented('Remover'),
+                    onPressed: () => LoanButtonActions.removeLoan(context, loan: {...widget.loan, ...detail}),
                     style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
                     icon: const Icon(Icons.delete_outline, size: 18),
                     label: const Text('Remover'),
@@ -330,13 +430,13 @@ class _LoanWorkspacePageState extends State<LoanWorkspacePage> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(width: 4, height: 38, decoration: BoxDecoration(color: mint, borderRadius: BorderRadius.circular(8))),
+          Container(width: 4, height: 42, decoration: BoxDecoration(color: mint, borderRadius: BorderRadius.circular(8))),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: muted, fontSize: 12)),
+                Text(label, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: muted, fontSize: 12)),
                 const SizedBox(height: 3),
                 Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
               ],
@@ -355,11 +455,7 @@ class _LoanWorkspacePageState extends State<LoanWorkspacePage> {
     ];
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 5),
-      decoration: BoxDecoration(
-        color: panel,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFF345248)),
-      ),
+      decoration: BoxDecoration(color: panel, borderRadius: BorderRadius.circular(18), border: Border.all(color: const Color(0xFF345248))),
       child: Row(
         children: List.generate(labels.length, (i) {
           final selected = tab == i;
@@ -415,42 +511,37 @@ class _LoanWorkspacePageState extends State<LoanWorkspacePage> {
         ),
         const SizedBox(height: 10),
         if (rows.isEmpty)
-          const Card(
-            child: Padding(
-              padding: EdgeInsets.all(20),
-              child: Center(child: Text('Nenhuma parcela disponível', style: TextStyle(color: muted))),
-            ),
-          ),
+          const Card(child: Padding(padding: EdgeInsets.all(20), child: Center(child: Text('Nenhuma parcela disponível', style: TextStyle(color: muted))))),
         for (final row in rows) _installmentCard(row),
       ],
     );
   }
 
   Widget _installmentCard(Map<String, dynamic> row) {
-    final total = toDouble(row['total']);
+    final total = toDouble(row['total'] ?? row['amount']);
     final paid = toDouble(row['paid_amount']);
     final interest = toDouble(row['interest']);
-    final principalOpen = (toDouble(row['principal']) - (paid - interest).clamp(0, double.infinity)).clamp(0, double.infinity).toDouble();
-    final interestOpen = (interest - paid.clamp(0, interest)).clamp(0, double.infinity).toDouble();
+    final principalValue = toDouble(row['principal']);
+    final interestPaidValue = toDouble(row['interest_paid']);
+    final principalPaidValue = toDouble(row['principal_paid']);
+    final principalOpen = (principalValue - principalPaidValue).clamp(0, double.infinity).toDouble();
+    final interestOpen = (interest - interestPaidValue).clamp(0, double.infinity).toDouble();
     final balance = (total - paid).clamp(0, double.infinity).toDouble();
     final number = row['number'] ?? '';
 
     return Card(
       margin: const EdgeInsets.only(bottom: 9),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: Color(0xFF616D20)),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: Color(0xFF616D20))),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
+        padding: const EdgeInsets.fromLTRB(9, 12, 5, 12),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            SizedBox(width: 22, child: Text('$number', style: const TextStyle(color: muted))),
+            SizedBox(width: 20, child: Text('$number', style: const TextStyle(color: muted))),
             Expanded(child: _installmentMetric('Balança\nprincipal', money(principalOpen))),
             Expanded(child: _installmentMetric('Saldo de juros', money(interestOpen))),
             Expanded(child: _installmentMetric('Total pago', money(paid))),
-            Expanded(child: _installmentMetric('Balanço total\nExpira ${_date(row['due_date'])}', money(balance))),
+            Expanded(flex: 2, child: _installmentMetric('Balanço total\nExpira ${_date(row['due_date'])}', money(balance))),
             PopupMenuButton<String>(
               iconSize: 18,
               onSelected: _notImplemented,
@@ -466,14 +557,14 @@ class _LoanWorkspacePageState extends State<LoanWorkspacePage> {
 
   Widget _installmentMetric(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 2),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(label, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10.5, color: Colors.white70)),
-          const SizedBox(height: 2),
-          Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800)),
+          Text(label, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 9.6, color: Colors.white70, height: 1.15)),
+          const SizedBox(height: 4),
+          Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11.7, fontWeight: FontWeight.w800)),
         ],
       ),
     );
@@ -490,10 +581,7 @@ class _LoanWorkspacePageState extends State<LoanWorkspacePage> {
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(15),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(colors: [Color(0xFF26775E), Color(0xFF83DFC4)]),
-            borderRadius: BorderRadius.circular(18),
-          ),
+          decoration: BoxDecoration(gradient: const LinearGradient(colors: [Color(0xFF26775E), Color(0xFF83DFC4)]), borderRadius: BorderRadius.circular(18)),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -511,19 +599,16 @@ class _LoanWorkspacePageState extends State<LoanWorkspacePage> {
         ),
         const SizedBox(height: 10),
         if (payments.isEmpty)
-          const Card(
-            child: Padding(
-              padding: EdgeInsets.all(18),
-              child: Center(child: Text('Este empréstimo ainda não tem histórico de pagamentos', style: TextStyle(color: muted), textAlign: TextAlign.center)),
-            ),
-          )
+          const Card(child: Padding(padding: EdgeInsets.all(18), child: Center(child: Text('Este empréstimo ainda não tem histórico de pagamentos', style: TextStyle(color: muted), textAlign: TextAlign.center))))
         else
           for (final p in payments)
             Card(
               child: ListTile(
                 leading: const CircleAvatar(backgroundColor: mintDark, child: Icon(Icons.payments_outlined, color: mint)),
                 title: Text(money(toDouble(p['amount'])), style: const TextStyle(fontWeight: FontWeight.w800)),
-                subtitle: Text('${_date(p['payment_date'])} • ${(p['method'] ?? 'Dinheiro')}'),
+                subtitle: Text('${_date(p['payment_date'] ?? p['paid_at'])} • ${(p['method'] ?? 'Dinheiro')}'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => _notImplemented('Abrir recibo deste pagamento'),
               ),
             ),
       ],
