@@ -52,7 +52,6 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
-
           manifest = Path('android/app/src/main/AndroidManifest.xml')
           s = manifest.read_text()
           permissions = [
@@ -69,34 +68,32 @@ jobs:
           manifest.write_text(s)
 
           main_activity = Path('android/app/src/main/kotlin/com/rootscobrancas/loan_control/MainActivity.kt')
-          main_activity.write_text('''package com.rootscobrancas.loan_control
-
-import android.Manifest
-import android.os.Build
-import android.os.Bundle
-import android.content.pm.PackageManager
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
-import io.flutter.embedding.android.FlutterActivity
-
-class MainActivity : FlutterActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(
-                this,
-                arrayOf(Manifest.permission.POST_NOTIFICATIONS),
-                1001
-            )
-        }
-    }
-}
-''')
+          kotlin = (
+              'package com.rootscobrancas.loan_control\n\n'
+              'import android.Manifest\n'
+              'import android.os.Build\n'
+              'import android.os.Bundle\n'
+              'import android.content.pm.PackageManager\n'
+              'import androidx.core.app.ActivityCompat\n'
+              'import androidx.core.content.ContextCompat\n'
+              'import io.flutter.embedding.android.FlutterActivity\n\n'
+              'class MainActivity : FlutterActivity() {\n'
+              '    override fun onCreate(savedInstanceState: Bundle?) {\n'
+              '        super.onCreate(savedInstanceState)\n'
+              '        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&\n'
+              '            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {\n'
+              '            ActivityCompat.requestPermissions(\n'
+              '                this,\n'
+              '                arrayOf(Manifest.permission.POST_NOTIFICATIONS),\n'
+              '                1001\n'
+              '            )\n'
+              '        }\n'
+              '    }\n'
+              '}\n'
+          )
+          main_activity.write_text(kotlin)
           PY
-          echo "--- AndroidManifest permissions ---"
           grep -n "uses-permission" android/app/src/main/AndroidManifest.xml
-          echo "--- MainActivity notification request ---"
           grep -n "POST_NOTIFICATIONS" android/app/src/main/kotlin/com/rootscobrancas/loan_control/MainActivity.kt
 
       - name: Configure Android signing like Cobrapp12
@@ -124,7 +121,6 @@ class MainActivity : FlutterActivity() {
             sed -i "/import 'package:flutter\/material.dart';/a import 'customer_flow.dart';" lib/main.dart
           fi
           sed -i '0,/const CustomersPage()/s//const OriginalCustomerFlow()/' lib/main.dart
-
           if ! grep -q "import 'payment_flow.dart';" lib/customer_flow.dart; then
             sed -i "/import 'main.dart';/a import 'payment_flow.dart';" lib/customer_flow.dart
           fi
@@ -134,7 +130,6 @@ class MainActivity : FlutterActivity() {
           if ! grep -q "import 'customer_detail_ref.dart';" lib/customer_flow.dart; then
             sed -i "/import 'main.dart';/a import 'customer_detail_ref.dart';" lib/customer_flow.dart
           fi
-
           sed -i 's/builder: (_) => OriginalPaymentPage(loan: loan)/builder: (_) => ConnectedPaymentPage(loan: loan)/' lib/customer_flow.dart
           sed -i 's/builder: (_) => OriginalCustomerDetail(/builder: (_) => ReferenceCustomerDetailPage(/' lib/customer_flow.dart
           python3 - <<'PY'
@@ -146,7 +141,6 @@ class MainActivity : FlutterActivity() {
               "LoanWorkspacePage(loan: loan, customerName: customerName, customerId: widget.customer['id']?.toString()),",
           )
           p.write_text(s)
-
           p = Path('lib/loan_workspace.dart')
           s = p.read_text()
           if "import 'loan_button_actions.dart';" not in s:
@@ -232,12 +226,9 @@ class MainActivity : FlutterActivity() {
           if old in s:
               s = s.replace(old, new, 1)
           p.write_text(s)
-
           p = Path('lib/customer_flow.dart')
-          s = p.read_text()
-          s = s.replace("R$ 0,00", "R\\$ 0,00")
+          s = p.read_text().replace("R$ 0,00", "R\\$ 0,00")
           p.write_text(s)
-
           p = Path('lib/customer_detail_ref.dart')
           s = p.read_text()
           s = s.replace('Icons.person_edit_alt_1_outlined', 'Icons.edit_outlined')
